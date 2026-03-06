@@ -141,7 +141,7 @@ Below are visualizations of the intermediate results in our pseudo-labeling proc
 </p>
 
 
-$\color{red}{\textsf{This dataset will be released soon by (03/11).}}$
+The dataset is available at HuggingFace: https://huggingface.co/datasets/nvidia/ffs_stereo4d
 
 # Citation
 ```bibtex
@@ -154,7 +154,7 @@ $\color{red}{\textsf{This dataset will be released soon by (03/11).}}$
 ```
 
 # Contact
-Please contact [Bowen Wen](https://wenbowen123.github.io/) for questions and commercial inquiries.
+Please contact [Bowen Wen](https://wenbowen123.github.io/) (bowenw@nvidia.com) for questions and commercial inquiries.
 
 # Acknowledgement
 We would like to thank Xutong Ren, Karsten Patzwaldt, Yonggan Fu, Saurav Muralidharan, Han Cai, Pavlo Molchanov, Yu Wang, Varun Praveen, Joseph Aribido and Jun Gao for their insightful early discussions for this project. We would also like to thank NVIDIA Isaac and TAO teams for their engineering support and valuable discussions. Thanks to the authors of [FoundationStereo](https://github.com/NVlabs/FoundationStereo), [Selective-IGEV](https://github.com/Windsrain/Selective-Stereo), [Stereo4D](https://github.com/Stereo4d/stereo4d-code) and [RAFT-Stereo](https://github.com/princeton-vl/RAFT-Stereo) for their code release. Finally, thanks to CVPR reviewers and AC for their appreciation of this work and constructive feedback.
