@@ -1,24 +1,24 @@
 # collect_calib.py
 import cv2, os
 
-# calibration 目录
+# Calibration directory
 CALIB_DIR = os.path.dirname(os.path.realpath(__file__))
 CALIB_IMG_DIR = os.path.join(CALIB_DIR, 'calib_imgs')
 
-cap = cv2.VideoCapture(0)  # 3D USB Camera (双目水平拼接)
+cap = cv2.VideoCapture(0)  # 3D USB Camera (stereo side-by-side)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
 os.makedirs(os.path.join(CALIB_IMG_DIR, 'left'), exist_ok=True)
 os.makedirs(os.path.join(CALIB_IMG_DIR, 'right'), exist_ok=True)
 
-# ChArUco board 参数 (根据你的标定板调整)
+# ChArUco board parameters (adjust for your calibration board)
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 charuco_board = cv2.aruco.CharucoBoard((5, 7), 0.0384, 0.0288, aruco_dict)
 detector = cv2.aruco.CharucoDetector(charuco_board)
 
 count = 0
-print("按空格保存(仅检测到ChArUco时)，按q退出")
+print("Press Space to save (only when ChArUco detected), q to quit")
 
 while True:
     ret, frame = cap.read()
@@ -27,7 +27,7 @@ while True:
     left  = frame[:, :640]
     right = frame[:, 640:]
 
-    # 在左图上检测并绘制 ChArUco
+    # Detect and draw ChArUco on left image
     charuco_corners, charuco_ids, marker_corners, marker_ids = detector.detectBoard(left)
     left_vis = left.copy()
     detected = False
@@ -38,7 +38,7 @@ while True:
             detected = True
 
     status_color = (0, 255, 0) if detected else (0, 0, 255)
-    status_text = f"已保存: {count}张 | ChArUco: {'OK' if detected else 'N/A'}"
+    status_text = f"Saved: {count} | ChArUco: {'OK' if detected else 'N/A'}"
     preview = cv2.hconcat([left_vis, right])
     cv2.putText(preview, status_text, (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2)
@@ -49,10 +49,10 @@ while True:
         if detected:
             cv2.imwrite(os.path.join(CALIB_IMG_DIR, f'left/{count:03d}.png'), left)
             cv2.imwrite(os.path.join(CALIB_IMG_DIR, f'right/{count:03d}.png'), right)
-            print(f"  保存第{count}张 (corners: {len(charuco_corners)})")
+            print(f"  Saved #{count} (corners: {len(charuco_corners)})")
             count += 1
         else:
-            print("  未检测到足够的ChArUco角点，跳过")
+            print("  Not enough ChArUco corners detected, skipped")
     elif key == ord('q'):
         break
 

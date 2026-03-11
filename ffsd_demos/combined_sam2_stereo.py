@@ -1,18 +1,18 @@
 """
-SAM2 追踪 + Fast-FoundationStereo 点云 联合 Demo
+SAM2 Tracking + Fast-FoundationStereo Point Cloud Combined Demo
 
-左窗口: RGB 图像 + SAM2 mask 叠加 + 交互 (OpenCV)
-右窗口: 可拖拽交互点云，追踪物体红色高亮 (Open3D)
+Left window: RGB image + SAM2 mask overlay + interaction (OpenCV)
+Right window: Interactive point cloud, tracked object highlighted in red (Open3D)
 
-用法:
+Usage:
   conda activate ffs
   python combined_sam2_stereo.py
 
-交互 (焦点在 OpenCV 窗口):
-  - 左键拖拽: 框选目标 → 初始化追踪
-  - 左键点击: 点选前景 → 初始化追踪
-  - r: 重新选择 (reset)
-  - q: 退出
+Controls (focus on OpenCV window):
+  - Left-click drag: Draw bounding box → initialize tracking
+  - Left-click: Select foreground point → initialize tracking
+  - r: Reset selection
+  - q: Quit
 """
 
 import os, sys, time, logging
@@ -22,12 +22,12 @@ import yaml
 import cv2
 import open3d as o3d
 
-# SAM2 路径
+# SAM2 path
 SAM2_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "SAM2_streaming")
 sys.path.insert(0, SAM2_DIR)
 from sam2.build_sam import build_sam2_camera_predictor
 
-# FFS 路径
+# FFS path
 FFS_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.append(FFS_DIR)
 from core.utils.utils import InputPadder
@@ -35,15 +35,15 @@ from Utils import AMP_DTYPE
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 
-# ===== GPU 配置 (SAM2 需要 bfloat16) =====
+# ===== GPU config (SAM2 requires bfloat16) =====
 torch.autocast(device_type="cuda", dtype=torch.bfloat16).__enter__()
 if torch.cuda.get_device_properties(0).major >= 8:
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
-# ===== 参数 =====
+# ===== Parameters =====
 FFS_MODEL_DIR = os.path.join(FFS_DIR, "weights/23-36-37/model_best_bp2_serialize.pth")
-CALIB_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "stereo_calib.yaml")
+CALIB_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "calibration", "stereo_calib.yaml")
 SAM2_CHECKPOINT = os.path.join(SAM2_DIR, "checkpoints/sam2.1/sam2.1_hiera_small.pt")
 SAM2_CFG = "sam2.1/sam2.1_hiera_s.yaml"
 
@@ -55,11 +55,11 @@ IMG_WIDTH = 640
 IMG_HEIGHT = 480
 PCD_STRIDE = 2
 MASK_ALPHA = 0.5
-MASK_COLOR_BGR = [75, 70, 203]            # 2D 红色高亮 (BGR)
-MASK_COLOR_RGB = np.array([203, 70, 75], dtype=np.float64) / 255.0  # 点云红色高亮 (RGB normalized)
+MASK_COLOR_BGR = [75, 70, 203]            # 2D red highlight (BGR)
+MASK_COLOR_RGB = np.array([203, 70, 75], dtype=np.float64) / 255.0  # Point cloud red highlight (RGB normalized)
 
-# ===== 1. 加载标定参数 =====
-logging.info("加载标定参数...")
+# ===== 1. Load calibration parameters =====
+logging.info("Loading calibration parameters...")
 with open(CALIB_FILE, 'r') as f:
     calib = yaml.safe_load(f)
 
@@ -78,7 +78,7 @@ fy = P_l[1, 1]
 cx = P_l[0, 2]
 cy = P_l[1, 2]
 
-logging.info(f"基线: {baseline*1000:.2f}mm, fx={fx:.1f}")
+logging.info(f"Baseline: {baseline*1000:.2f}mm, fx={fx:.1f}")
 
 map_lx, map_ly = cv2.initUndistortRectifyMap(K_l, dist_l, R_l, P_l, (IMG_WIDTH, IMG_HEIGHT), cv2.CV_32FC1)
 map_rx, map_ry = cv2.initUndistortRectifyMap(K_r, dist_r, R_r, P_r, (IMG_WIDTH, IMG_HEIGHT), cv2.CV_32FC1)
@@ -87,8 +87,8 @@ u_grid, v_grid = np.meshgrid(np.arange(0, IMG_WIDTH, PCD_STRIDE), np.arange(0, I
 u_flat = u_grid.reshape(-1).astype(np.float32)
 v_flat = v_grid.reshape(-1).astype(np.float32)
 
-# ===== 2. 加载 FFS 模型 =====
-logging.info("加载 FFS 模型...")
+# ===== 2. Load FFS model =====
+logging.info("Loading FFS model...")
 torch.autograd.set_grad_enabled(False)
 
 with open(os.path.join(os.path.dirname(FFS_MODEL_DIR), "cfg.yaml"), 'r') as f:
@@ -100,23 +100,23 @@ ffs_model = torch.load(FFS_MODEL_DIR, map_location='cpu', weights_only=False)
 ffs_model.args.valid_iters = VALID_ITERS
 ffs_model.args.max_disp = MAX_DISP
 ffs_model.cuda().eval()
-logging.info("FFS 模型加载完成")
+logging.info("FFS model loaded")
 
-# ===== 3. 加载 SAM2 模型 =====
-logging.info("加载 SAM2 模型...")
+# ===== 3. Load SAM2 model =====
+logging.info("Loading SAM2 model...")
 sam2_predictor = build_sam2_camera_predictor(SAM2_CFG, SAM2_CHECKPOINT)
 sam2_predictor.fill_hole_area = 0
-logging.info("SAM2 模型加载完成")
+logging.info("SAM2 model loaded")
 
-# ===== 4. 初始化摄像头 =====
-logging.info("初始化摄像头...")
+# ===== 4. Initialize camera =====
+logging.info("Initializing camera...")
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-assert cap.isOpened(), "无法打开摄像头"
+assert cap.isOpened(), "Failed to open camera"
 
-# ===== 5. 预热 FFS =====
-logging.info("预热 FFS 模型...")
+# ===== 5. Warm up FFS =====
+logging.info("Warming up FFS model...")
 dummy = torch.randn(1, 3, IMG_HEIGHT, IMG_WIDTH).cuda().float()
 padder = InputPadder(dummy.shape, divis_by=32, force_square=False)
 d0, d1 = padder.pad(dummy, dummy)
@@ -124,25 +124,25 @@ with torch.amp.autocast('cuda', enabled=True, dtype=AMP_DTYPE):
     _ = ffs_model.forward(d0, d1, iters=VALID_ITERS, test_mode=True, optimize_build_volume='pytorch1')
 del dummy, d0, d1
 torch.cuda.empty_cache()
-logging.info("预热完成")
+logging.info("Warm-up complete")
 
-# ===== 6. Open3D 可视化器 =====
+# ===== 6. Open3D visualizer =====
 vis = o3d.visualization.Visualizer()
-vis.create_window("点云 (可拖拽)", width=720, height=540, left=700, top=50)
+vis.create_window("Point Cloud (interactive)", width=720, height=540, left=700, top=50)
 vis.get_render_option().point_size = 2.0
 vis.get_render_option().background_color = np.array([0.1, 0.1, 0.1])
 pcd = o3d.geometry.PointCloud()
 vis.add_geometry(pcd)
-obb_lineset = o3d.geometry.LineSet()  # 6D bbox 可视化
+obb_lineset = o3d.geometry.LineSet()  # 6D bbox visualization
 vis.add_geometry(obb_lineset)
-vis.get_render_option().line_width = 5.0  # 粗线
+vis.get_render_option().line_width = 5.0  # Thick lines
 
-# --- OBB 平滑状态 ---
-prev_axes = None              # 上一帧的 OBB 旋转轴 (3x3)，用于轴方向一致性
-obb_smooth_center = None      # EMA 平滑的中心点
-obb_smooth_extent = None      # EMA 平滑的尺寸
-obb_smooth_R = None           # 平滑的旋转矩阵
-OBB_SMOOTH = 0.75             # 新帧权重
+# --- OBB smoothing state ---
+prev_axes = None              # Previous frame OBB rotation axes (3x3), for axis direction consistency
+obb_smooth_center = None      # EMA-smoothed center
+obb_smooth_extent = None      # EMA-smoothed extent
+obb_smooth_R = None           # Smoothed rotation matrix
+OBB_SMOOTH = 0.75             # New frame weight
 
 def create_camera_frustum(fx_, fy_, cx_, cy_, w, h, scale=0.15):
     corners_2d = np.array([[0, 0], [w, 0], [w, h], [0, h]], dtype=np.float32)
@@ -166,7 +166,7 @@ vis.add_geometry(cam_frustum)
 coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1, origin=[0, 0, 0])
 vis.add_geometry(coord_frame)
 
-# ===== 7. OpenCV 窗口 + 鼠标交互 =====
+# ===== 7. OpenCV window + mouse interaction =====
 cv2.namedWindow("RGB + SAM2", cv2.WINDOW_AUTOSIZE)
 cv2.moveWindow("RGB + SAM2", 30, 50)
 
@@ -207,9 +207,9 @@ cv2.setMouseCallback("RGB + SAM2", mouse_callback)
 first_frame = True
 frame_count = 0
 
-logging.info("拖拽框选/点击选择目标, r=重新选择, q=退出")
+logging.info("Drag/click to select target, r=reset, q=quit")
 
-# ===== 8. 主循环 =====
+# ===== 8. Main loop =====
 try:
     while True:
         t0 = time.time()
@@ -222,7 +222,7 @@ try:
         raw_right = frame[:, IMG_WIDTH:]
         rotated_left = cv2.rotate(raw_left, cv2.ROTATE_180)
 
-        # --- SAM2: 重置 ---
+        # --- SAM2: Reset ---
         if need_reset:
             sam2_predictor.reset_state()
             sam2_initialized = False
@@ -236,9 +236,9 @@ try:
             obb_smooth_center = None
             obb_smooth_extent = None
             obb_smooth_R = None
-            logging.info("已重置，重新选择目标")
+            logging.info("Reset, select new target")
 
-        # --- SAM2: 初始化 (bbox) ---
+        # --- SAM2: Initialize (bbox) ---
         if pending_bbox is not None and not sam2_initialized:
             sam2_predictor.load_first_frame(rotated_left)
             x1, y1, x2, y2 = pending_bbox
@@ -246,9 +246,9 @@ try:
             sam2_predictor.add_new_prompt(frame_idx=0, obj_id=1, bbox=bbox_arr)
             sam2_initialized = True
             pending_bbox = None
-            logging.info(f"追踪初始化 (bbox: {x1},{y1},{x2},{y2})")
+            logging.info(f"Tracking initialized (bbox: {x1},{y1},{x2},{y2})")
 
-        # --- SAM2: 初始化 (point) ---
+        # --- SAM2: Initialize (point) ---
         elif pending_point is not None and not sam2_initialized:
             sam2_predictor.load_first_frame(rotated_left)
             px, py = pending_point
@@ -257,9 +257,9 @@ try:
             sam2_predictor.add_new_prompt(frame_idx=0, obj_id=1, points=points, labels=labels)
             sam2_initialized = True
             pending_point = None
-            logging.info(f"追踪初始化 (point: {px},{py})")
+            logging.info(f"Tracking initialized (point: {px},{py})")
 
-        # --- SAM2: 追踪 ---
+        # --- SAM2: Track ---
         if sam2_initialized:
             out_obj_ids, out_mask_logits = sam2_predictor.track(rotated_left)
             if len(out_obj_ids) > 0:
@@ -267,7 +267,7 @@ try:
             else:
                 current_mask = None
 
-        # --- 2D 显示 ---
+        # --- 2D display ---
         display = rotated_left.copy()
         if current_mask is not None and np.any(current_mask):
             overlay = display.copy()
@@ -279,7 +279,7 @@ try:
         if drawing and ix >= 0:
             cv2.rectangle(display, (ix, iy), (fx_mouse, fy_mouse), (255, 200, 0), 2)
 
-        # --- 3D 分支: FFS ---
+        # --- 3D branch: FFS ---
         rect_left = cv2.remap(raw_left, map_lx, map_ly, cv2.INTER_LINEAR)
         rect_right = cv2.remap(raw_right, map_rx, map_ry, cv2.INTER_LINEAR)
 
@@ -320,60 +320,60 @@ try:
 
         colors = rect_left[v.astype(int), u.astype(int), ::-1].astype(np.float64) / 255.0
 
-        # --- 点云高亮: 映射 SAM2 mask 到矫正空间 ---
+        # --- Point cloud highlight: Map SAM2 mask to rectified space ---
         if current_mask is not None and np.any(current_mask):
-            # mask 在旋转后图像坐标 → 旋转回原始 → remap 到矫正空间
+            # Mask in rotated image coords → rotate back to original → remap to rectified space
             mask_raw = cv2.rotate(current_mask, cv2.ROTATE_180)
             mask_rect = cv2.remap(mask_raw, map_lx, map_ly, cv2.INTER_NEAREST)
             mask_ds = mask_rect[::PCD_STRIDE, ::PCD_STRIDE].reshape(-1)
             highlight = mask_ds[valid_mask] > 0
 
             if np.any(highlight):
-                # 50% 混合原色 + 红色
+                # Blend original color + red
                 colors[highlight] = colors[highlight] * 0.2 + MASK_COLOR_RGB * 0.8
 
-                # --- 6D BBox: PCA + 轴一致性 + EMA 平滑 ---
+                # --- 6D BBox: PCA + axis consistency + EMA smoothing ---
                 obj_pts = points_3d[highlight]
                 if len(obj_pts) >= 10:
-                    # 90% 离群值过滤
+                    # 90% outlier filtering
                     centroid = obj_pts.mean(axis=0)
                     dists = np.linalg.norm(obj_pts - centroid, axis=1)
                     thresh = np.percentile(dists, 90)
                     filtered = obj_pts[dists <= thresh]
 
                     if len(filtered) >= 10:
-                        # PCA 求主轴
+                        # PCA for principal axes
                         center = filtered.mean(axis=0)
                         cov = np.cov((filtered - center).T)
                         eigenvalues, eigenvectors = np.linalg.eigh(cov)
-                        # eigh 返回升序，翻转为降序
+                        # eigh returns ascending order, flip to descending
                         idx = np.argsort(eigenvalues)[::-1]
                         eigenvalues = eigenvalues[idx]
-                        axes = eigenvectors[:, idx]  # 3x3, 列为主轴
+                        axes = eigenvectors[:, idx]  # 3x3, columns are principal axes
 
-                        # 确保右手坐标系
+                        # Ensure right-hand coordinate system
                         if np.linalg.det(axes) < 0:
                             axes[:, 2] = -axes[:, 2]
 
-                        # 轴方向一致性: 与上一帧对比，翻转的轴取反
+                        # Axis direction consistency: compare with previous frame, flip if reversed
                         if prev_axes is not None:
                             for i in range(3):
                                 if np.dot(axes[:, i], prev_axes[:, i]) < 0:
                                     axes[:, i] = -axes[:, i]
                         prev_axes = axes.copy()
 
-                        # 在主轴坐标系下求 extent
+                        # Compute extent in principal axis coordinate system
                         local = (filtered - center) @ axes
                         extent = local.max(axis=0) - local.min(axis=0)
                         local_center_offset = (local.max(axis=0) + local.min(axis=0)) / 2
                         center = center + axes @ local_center_offset
 
-                        # EMA 平滑
+                        # EMA smoothing
                         if obb_smooth_center is not None:
                             obb_smooth_center = OBB_SMOOTH * center + (1 - OBB_SMOOTH) * obb_smooth_center
                             obb_smooth_extent = OBB_SMOOTH * extent + (1 - OBB_SMOOTH) * obb_smooth_extent
                             obb_smooth_R = OBB_SMOOTH * axes + (1 - OBB_SMOOTH) * obb_smooth_R
-                            # 重新正交化 (Gram-Schmidt)
+                            # Re-orthogonalize (Gram-Schmidt)
                             u0 = obb_smooth_R[:, 0]
                             u0 = u0 / np.linalg.norm(u0)
                             u1 = obb_smooth_R[:, 1] - np.dot(obb_smooth_R[:, 1], u0) * u0
@@ -385,7 +385,7 @@ try:
                             obb_smooth_extent = extent.copy()
                             obb_smooth_R = axes.copy()
 
-                        # 从平滑后的 center/extent/R 生成 8 个角点
+                        # Generate 8 corners from smoothed center/extent/R
                         half = obb_smooth_extent / 2
                         corners_local = np.array([
                             [-1,-1,-1], [1,-1,-1], [1,1,-1], [-1,1,-1],
@@ -407,14 +407,14 @@ try:
                     obb_lineset.points = o3d.utility.Vector3dVector(np.zeros((0, 3)))
                     obb_lineset.lines = o3d.utility.Vector2iVector(np.zeros((0, 2), dtype=np.int32))
         else:
-            # 没有 mask 时清空 OBB
+            # Clear OBB when no mask
             obb_lineset.points = o3d.utility.Vector3dVector(np.zeros((0, 3)))
             obb_lineset.lines = o3d.utility.Vector2iVector(np.zeros((0, 2), dtype=np.int32))
 
         t1 = time.time()
         fps = 1.0 / (t1 - t0)
 
-        # FPS + 状态栏
+        # FPS + status bar
         cv2.putText(display, f"FPS: {fps:.1f}", (IMG_WIDTH - 130, 25),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
         if sam2_initialized:
@@ -426,7 +426,7 @@ try:
 
         cv2.imshow("RGB + SAM2", display)
 
-        # 更新 Open3D
+        # Update Open3D
         pcd.points = o3d.utility.Vector3dVector(points_3d.astype(np.float64))
         pcd.colors = o3d.utility.Vector3dVector(colors)
 
@@ -444,7 +444,7 @@ try:
 
         frame_count += 1
         if frame_count % 30 == 0:
-            logging.info(f"帧 {frame_count}, FPS: {fps:.1f}, 点数: {len(points_3d)}")
+            logging.info(f"Frame {frame_count}, FPS: {fps:.1f}, points: {len(points_3d)}")
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
@@ -458,4 +458,4 @@ finally:
     cap.release()
     vis.destroy_window()
     cv2.destroyAllWindows()
-    logging.info("已退出")
+    logging.info("Exited")

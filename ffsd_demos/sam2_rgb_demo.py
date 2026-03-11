@@ -1,17 +1,17 @@
 """
-SAM2 实时交互式分割 + 追踪 Demo (左目摄像头)
+SAM2 Real-time Interactive Segmentation + Tracking Demo (left camera)
 
-基于官方 SAM2 CameraPredictor，选中后持续追踪物体。
+Based on SAM2 CameraPredictor, tracks objects after selection.
 
-用法:
+Usage:
   conda activate ffs
   python sam2_rgb_demo.py
 
-交互:
-  - 左键拖拽: 框选目标 → 初始化追踪
-  - 左键点击: 点选前景 → 初始化追踪
-  - r: 重新选择 (reset)
-  - q: 退出
+Controls:
+  - Left-click drag: Draw bounding box → initialize tracking
+  - Left-click: Select foreground point → initialize tracking
+  - r: Reset selection
+  - q: Quit
 """
 
 import os, sys
@@ -19,43 +19,43 @@ import cv2
 import numpy as np
 import torch
 
-# 用本地 SAM2_streaming (有 camera_predictor)
+# Use local SAM2_streaming (has camera_predictor)
 SAM2_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "SAM2_streaming")
 sys.path.insert(0, SAM2_DIR)
 from sam2.build_sam import build_sam2_camera_predictor
 
-# ===== GPU 配置 (必须在 SAM2 操作之前) =====
+# ===== GPU config (must be before SAM2 operations) =====
 torch.autocast(device_type="cuda", dtype=torch.bfloat16).__enter__()
 if torch.cuda.get_device_properties(0).major >= 8:
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
-# ===== 参数 =====
+# ===== Parameters =====
 CHECKPOINT = os.path.join(SAM2_DIR, "checkpoints/sam2.1/sam2.1_hiera_small.pt")
 MODEL_CFG = "sam2.1/sam2.1_hiera_s.yaml"
 IMG_WIDTH = 640
 IMG_HEIGHT = 480
 MASK_ALPHA = 0.5
-MASK_COLOR_BGR = [75, 70, 203]  # 红色高亮
+MASK_COLOR_BGR = [75, 70, 203]  # Red highlight
 
-# ===== 加载模型 =====
-print("加载 SAM2 模型...")
+# ===== Load model =====
+print("Loading SAM2 model...")
 predictor = build_sam2_camera_predictor(MODEL_CFG, CHECKPOINT)
-predictor.fill_hole_area = 0  # 跳过 fill_holes (需要 _C.so CUDA 扩展，当前系统 glibc 不兼容)
-print("SAM2 模型加载完成")
+predictor.fill_hole_area = 0  # Skip fill_holes (requires _C.so CUDA extension, incompatible glibc)
+print("SAM2 model loaded")
 
-# ===== 摄像头 =====
+# ===== Camera =====
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-assert cap.isOpened(), "无法打开摄像头"
+assert cap.isOpened(), "Failed to open camera"
 
-# ===== 交互状态 =====
+# ===== Interaction state =====
 drawing = False
 ix, iy, fx, fy = -1, -1, -1, -1
-pending_bbox = None       # 待处理的 bbox (x1, y1, x2, y2)
-pending_point = None      # 待处理的点击 (x, y)
-initialized = False       # SAM2 已初始化
+pending_bbox = None       # Pending bbox (x1, y1, x2, y2)
+pending_point = None      # Pending click point (x, y)
+initialized = False       # SAM2 initialized
 need_reset = False
 
 
@@ -77,19 +77,19 @@ def mouse_callback(event, x, y, flags, param):
         dx = abs(fx - ix)
         dy = abs(fy - iy)
         if dx > 8 and dy > 8:
-            # 框选
+            # Bounding box selection
             x1, y1 = min(ix, fx), min(iy, fy)
             x2, y2 = max(ix, fx), max(iy, fy)
             pending_bbox = (x1, y1, x2, y2)
         else:
-            # 点击
+            # Point click
             pending_point = (x, y)
 
 
 cv2.namedWindow("SAM2 Tracking", cv2.WINDOW_AUTOSIZE)
 cv2.setMouseCallback("SAM2 Tracking", mouse_callback)
 
-print("拖拽框选/点击选择目标, r=重新选择, q=退出")
+print("Drag/click to select target, r=reset, q=quit")
 
 try:
     while True:
@@ -99,16 +99,16 @@ try:
 
         left = cv2.rotate(frame[:, :IMG_WIDTH], cv2.ROTATE_180)
 
-        # --- 重置 ---
+        # --- Reset ---
         if need_reset:
             predictor.reset_state()
             initialized = False
             need_reset = False
             pending_bbox = None
             pending_point = None
-            print("已重置，重新选择目标")
+            print("Reset, select new target")
 
-        # --- 初始化: bbox prompt ---
+        # --- Initialize: bbox prompt ---
         if pending_bbox is not None and not initialized:
             predictor.load_first_frame(left)
             x1, y1, x2, y2 = pending_bbox
@@ -118,9 +118,9 @@ try:
             )
             initialized = True
             pending_bbox = None
-            print(f"追踪初始化 (bbox: {x1},{y1},{x2},{y2})")
+            print(f"Tracking initialized (bbox: {x1},{y1},{x2},{y2})")
 
-        # --- 初始化: point prompt ---
+        # --- Initialize: point prompt ---
         elif pending_point is not None and not initialized:
             predictor.load_first_frame(left)
             px, py = pending_point
@@ -131,9 +131,9 @@ try:
             )
             initialized = True
             pending_point = None
-            print(f"追踪初始化 (point: {px},{py})")
+            print(f"Tracking initialized (point: {px},{py})")
 
-        # --- 追踪 ---
+        # --- Track ---
         display = left.copy()
         if initialized:
             out_obj_ids, out_mask_logits = predictor.track(left)
@@ -141,20 +141,20 @@ try:
             if len(out_obj_ids) > 0:
                 mask = (out_mask_logits[0] > 0.0).permute(1, 2, 0).byte().cpu().numpy().squeeze()
 
-                # 半透明叠加
+                # Semi-transparent overlay
                 overlay = display.copy()
                 overlay[mask > 0] = MASK_COLOR_BGR
                 display = cv2.addWeighted(display, 1 - MASK_ALPHA, overlay, MASK_ALPHA, 0)
 
-                # 轮廓
+                # Contour
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 cv2.drawContours(display, contours, -1, (0, 255, 0), 2)
 
-        # --- 画框预览 ---
+        # --- Draw box preview ---
         if drawing and ix >= 0:
             cv2.rectangle(display, (ix, iy), (fx, fy), (255, 200, 0), 2)
 
-        # 状态栏
+        # Status bar
         if initialized:
             status = "TRACKING | r=reset q=quit"
         else:
@@ -175,4 +175,4 @@ except KeyboardInterrupt:
 finally:
     cap.release()
     cv2.destroyAllWindows()
-    print("已退出")
+    print("Exited")

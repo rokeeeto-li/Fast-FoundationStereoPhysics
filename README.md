@@ -17,9 +17,9 @@ Built on top of Fast-FoundationStereo (CVPR 2026).
 
 | Camera | Script | Notes |
 |--------|--------|-------|
-| USB stereo (side-by-side) | `demos/stereo_ffs_realtime.py` | Requires stereo calibration |
-| Intel RealSense D415 | `demos/d415_ffs_realtime.py` | Uses IR stereo pair + RGB colorization |
-| OAK-D Lite | `demos/oak_ffs_realtime.py` | Uses DepthAI SDK |
+| USB stereo (side-by-side) | `ffsd_demos/stereo_ffs_realtime.py` | Requires stereo calibration |
+| Intel RealSense D415 | `ffsd_demos/d415_ffs_realtime.py` | Uses IR stereo pair + RGB colorization |
+| OAK-D Lite | `ffsd_demos/oak_ffs_realtime.py` | Uses DepthAI SDK |
 
 ## Installation
 
@@ -98,14 +98,14 @@ Images are saved to `calibration/calib_imgs/left/` and `calibration/calib_imgs/r
 python calibration/calibrate.py
 ```
 
-Generates `stereo_calib.yaml` with intrinsics, distortion, rectification maps, and baseline.
+Generates `calibration/stereo_calib.yaml` with intrinsics, distortion, rectification maps, and baseline.
 
 ## Usage
 
 ### Basic stereo point cloud (USB camera)
 
 ```bash
-python demos/stereo_ffs_realtime.py
+python ffsd_demos/stereo_ffs_realtime.py
 ```
 
 Displays a real-time interactive 3D point cloud in an Open3D window.
@@ -113,7 +113,7 @@ Displays a real-time interactive 3D point cloud in an Open3D window.
 ### RealSense D415
 
 ```bash
-python demos/d415_ffs_realtime.py
+python ffsd_demos/d415_ffs_realtime.py
 ```
 
 Uses IR stereo pairs for depth estimation with RGB colorization.
@@ -121,13 +121,13 @@ Uses IR stereo pairs for depth estimation with RGB colorization.
 ### OAK-D Lite
 
 ```bash
-python demos/oak_ffs_realtime.py
+python ffsd_demos/oak_ffs_realtime.py
 ```
 
 ### SAM2 tracking demo (RGB only)
 
 ```bash
-python demos/sam2_rgb_demo.py
+python ffsd_demos/sam2_rgb_demo.py
 ```
 
 - **Drag** to draw a bounding box around the target
@@ -138,7 +138,7 @@ python demos/sam2_rgb_demo.py
 ### SAM2 + Stereo point cloud + 6D BBox
 
 ```bash
-python demos/combined_sam2_stereo.py
+python ffsd_demos/combined_sam2_stereo.py
 ```
 
 Two windows:
