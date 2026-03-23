@@ -1,8 +1,9 @@
 # Fast-FoundationStereoPose 
 
-Real-time stereo depth estimation and interactive 3D point cloud visualization using [Fast-FoundationStereo](https://github.com/NVlabs/Fast-FoundationStereo), with optional [SAM2](https://github.com/facebookresearch/sam2) object tracking and 6D oriented bounding box estimation. 
+Real-time stereo depth estimation and interactive 3D point cloud visualization using [Fast-FoundationStereo](https://github.com/NVlabs/Fast-FoundationStereo), with [SAM2](https://github.com/facebookresearch/sam2) object tracking and 6D oriented bounding box estimation. 
 
 Now with Newton engine integrated for realtime physics prediction.
+<img width="1437" height="828" alt="image" src="https://github.com/user-attachments/assets/1a103f3d-e50e-4b18-8b30-a4af4f000e53" />
 
 Built on top of Fast-FoundationStereo (CVPR 2026).
 
