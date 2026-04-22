@@ -1,0 +1,48 @@
+[project]
+name = "fast-foundation-stereo-physics"
+version = "0.1.0"
+description = "Real-time stereo depth + SAM2 tracking + Newton physics simulation"
+requires-python = ">=3.12"
+dependencies = [
+    # Core model & inference
+    "timm",
+    "einops",
+    "omegaconf",
+    "scipy",
+    "numpy",
+    "scikit-image",
+    "opencv-contrib-python",
+    "imageio",
+    "pyyaml",
+    "open3d",
+    # PyTorch (CUDA 12.8)
+    "torch>=2.6.0",
+    "torchvision",
+    "xformers",
+]
+
+[project.optional-dependencies]
+realsense = ["pyrealsense2"]
+oakd = ["depthai"]
+sim = [
+    "warp-lang",
+    "newton>=1.1.0",
+    "viser",
+    "flask",
+]
+all = [
+    "fast-foundation-stereo-physics[realsense,sim]",
+]
+
+[tool.uv]
+find-links = ["https://download.pytorch.org/whl/cu128"]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+xformers = { index = "pytorch-cu128" }

@@ -1,32 +1,58 @@
-__pycache__
-*.vscode
-cfg.yaml
-*.pth
-*.pkl
+# ---- Python bytecode & packaging ----
+__pycache__/
 *.pyc
+*.pyo
 *.so
-*.egg-info
+*.egg-info/
+build/
+dist/
 
-# Ignore weight files but keep the folder structure
-weights/*
-!weights/.gitkeep
-output/
+# ---- Virtual environments & package managers ----
+.venv/
+venv/
+env/
+.python-version
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# ---- Editor / IDE ----
+*.vscode
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ---- Claude Code / agent scratch ----
 .claude/
 
-# SAM2 checkpoints (users download separately per README)
+# ---- FFSP / model weights (downloaded separately per README) ----
+cfg.yaml
+*.pth
+*.pt
+*.ts
+*.pkl
+*.onnx
+*.engine
+
+weights/*
+!weights/.gitkeep
+
+# SAM2 checkpoints
 SAM2_streaming/checkpoints/
 SAM2_streaming/__pycache__/
 SAM2_streaming/sam2/__pycache__/
 
-# User-specific calibration data
+# ---- Generated outputs ----
+output/
+output_docker/runs/
+*.bag
+
+# ---- User-specific calibration data ----
 calibration/calib_imgs/
+calibration/stereo_calib.yaml
 
-# Model weights
-*.pt
-*.ts
-*.onnx
-*.engine
-
-# Temporary files
+# ---- RealSense / capture temp files ----
 DepthCamera_*.json
 DepthCapture_*.png
